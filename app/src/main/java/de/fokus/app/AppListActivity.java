@@ -25,7 +25,7 @@ import java.util.Set;
 public class AppListActivity extends Activity {
 
     static final String EXTRA_PICK = "pick";
-    private static final int MAX_HOME_APPS = 6;
+    private static final int MAX_HOME_APPS = 8;
 
     private final List<String[]> apps = new ArrayList<>();   // {Name, Paket}
     private final List<String[]> shown = new ArrayList<>();

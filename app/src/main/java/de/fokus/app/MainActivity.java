@@ -20,6 +20,7 @@ public class MainActivity extends Activity {
     private TextView status;
     private TextView counter;
     private LinearLayout colorRow;
+    private android.widget.Button quietButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,7 +55,7 @@ public class MainActivity extends Activity {
                         Uri.parse("package:" + getPackageName())))));
 
         section(box, "2. Ruhiger Homescreen");
-        box.addView(Ui.button(this, "Homescreen-Apps auswählen (max. 6)", () -> {
+        box.addView(Ui.button(this, "Homescreen-Apps auswählen (max. 8)", () -> {
             Intent i = new Intent(this, AppListActivity.class);
             i.putExtra(AppListActivity.EXTRA_PICK, true);
             startActivity(i);
@@ -63,6 +64,15 @@ public class MainActivity extends Activity {
                 () -> startActivity(new Intent(Settings.ACTION_HOME_SETTINGS))));
         hint(box, "Auf dem Fokus-Homescreen lange drücken, um hierher zurückzukommen. "
                 + "Alle anderen Apps findest du unten über „Alle Apps“ – bewusst ein Schritt mehr.");
+
+        box.addView(Ui.button(this, "Kalender für Termine erlauben",
+                () -> requestPermissions(new String[]{android.Manifest.permission.READ_CALENDAR}, 1)));
+        box.addView(Ui.button(this, "Bildschirmzeit erlauben (Nutzungsdatenzugriff → Fokus)",
+                () -> startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))));
+        quietButton = Ui.button(this, "", this::chooseQuiet);
+        box.addView(quietButton);
+        hint(box, "Ruhiger Start: Bis zu dieser Uhrzeit ist „Alle Apps“ ausgeblendet – "
+                + "nur Uhr, Termine und deine Homescreen-Apps.");
 
         section(box, "3. Akzentfarbe");
         colorRow = new LinearLayout(this);
@@ -97,7 +107,25 @@ public class MainActivity extends Activity {
         refreshColors();
     }
 
+    private void chooseQuiet() {
+        String[] labels = {"Aus", "bis 6:00", "bis 7:00", "bis 8:00", "bis 9:00", "bis 10:00"};
+        int[] hours = {-1, 6, 7, 8, 9, 10};
+        new android.app.AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("Ruhiger Start")
+                .setItems(labels, (d, which) -> {
+                    Game.setQuietUntil(this, hours[which]);
+                    updateQuietButton();
+                })
+                .show();
+    }
+
+    private void updateQuietButton() {
+        int h = Game.quietUntil(this);
+        quietButton.setText("Ruhiger Start: " + (h < 0 ? "aus" : "bis " + h + ":00"));
+    }
+
     private void refreshColors() {
+        updateQuietButton();
         colorRow.removeAllViews();
         int current = Game.colorIndex(this);
         boolean auto = Game.autoColor(this);

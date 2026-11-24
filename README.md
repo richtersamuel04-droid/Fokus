@@ -2,9 +2,9 @@
 
 ## Was die App macht
 - **Reels-Block:** Öffnest du in Instagram Reels (Reels-Tab oder ein Reel aus Feed/DMs), wirst du sofort zurückgeschickt. Feed, Stories und Nachrichten funktionieren normal.
-- **Ruhiger Homescreen:** Schwarz, Uhrzeit, Datum, max. 6 Apps als Text, keine Icons und keine roten Badges. Alle anderen Apps gibt's nur über „Alle Apps“ plus Suche.
-- **Tagesziele:** bis zu 3 Ziele auf dem Homescreen. Antippen = erledigt, lange drücken = entfernen.
-- **Akzentfarbe:** 6 Farben, auf Wunsch täglich wechselnd, mit dezentem Leuchten hinter der Uhr.
+- **Homescreen (Apple-clean, schwarz, grüne Akzente):** Uhr, optionale Zeile „Heute wichtig“, nächster Termin aus dem Kalender, Bildschirmzeit heute, unten bis zu 8 Apps als schlichte grüne Icons.
+- **Fokus:** kleiner Knopf oben rechts. 15, 25 oder 50 Minuten, in denen Instagram komplett gesperrt ist.
+- **Ruhiger Start:** Bis zu einer einstellbaren Uhrzeit ist „Alle Apps“ ausgeblendet.
 - Zähler, wie oft du schon geblockt wurdest.
 
 ## APK bauen (kostenlos, ohne PC-Software)

@@ -41,6 +41,10 @@ public class ReelsBlockerService extends AccessibilityService {
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null || root.getPackageName() == null) return;
         if (!IG.equals(root.getPackageName().toString())) return;
+        if (Game.focusActive(this)) {
+            blockAll();
+            return;
+        }
         int where = detectReels(root);
         if (where != NONE) block(root, where);
     };
@@ -111,6 +115,20 @@ public class ReelsBlockerService extends AccessibilityService {
         }
         // Nachprüfen: Falls man noch in Reels ist, wird erneut zurückgeschickt.
         handler.postDelayed(check, 800);
+    }
+
+    /** Während eines Fokusblocks ist Instagram komplett gesperrt. */
+    private void blockAll() {
+        long now = SystemClock.uptimeMillis();
+        if (now - lastBlock < 700) return;
+        lastBlock = now;
+        performGlobalAction(GLOBAL_ACTION_HOME);
+        long min = Math.max(1, (Game.focusEnd(this) - System.currentTimeMillis() + 59_999) / 60_000);
+        if (now - lastToast > 4000) {
+            lastToast = now;
+            Toast.makeText(this, "Fokusblock läuft noch " + min + " Min – Instagram ist gesperrt",
+                    Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
