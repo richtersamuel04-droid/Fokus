@@ -6,6 +6,7 @@ import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.AppOpsManager;
+import android.app.SearchManager;
 import android.app.usage.UsageEvents;
 import android.app.usage.UsageStatsManager;
 import android.content.ContentUris;
@@ -32,6 +33,8 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -162,8 +165,12 @@ public class LauncherActivity extends Activity {
         content.addView(new View(this), new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
+        content.addView(searchBar("Google durchsuchen", false));
+        content.addView(searchBar("Claude fragen", true));
+
         appsGrid = new LinearLayout(this);
         appsGrid.setOrientation(LinearLayout.VERTICAL);
+        appsGrid.setPadding(0, dp(10), 0, 0);
         content.addView(appsGrid);
 
         LinearLayout bottom = new LinearLayout(this);
@@ -640,6 +647,116 @@ public class LauncherActivity extends Activity {
                     }).start();
         });
         return cell;
+    }
+
+    // ================= Google- & Claude-Leiste =================
+
+    private static final String CLAUDE_PKG = "com.anthropic.claude";
+
+    private View searchBar(String hint, boolean claude) {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(18), 0, dp(10), 0);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(24));
+        bg.setColor(0xFF111111);
+        bg.setStroke(dp(1), 0xFF1F1F1F);
+        bar.setBackground(bg);
+
+        View dot = new View(this);
+        GradientDrawable d = new GradientDrawable();
+        d.setShape(GradientDrawable.OVAL);
+        d.setColor(claude ? Game.accent(this) : 0xFF555555);
+        dot.setBackground(d);
+        LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dp(7), dp(7));
+        dotLp.rightMargin = dp(14);
+        bar.addView(dot, dotLp);
+
+        EditText input = new EditText(this);
+        input.setHint(hint);
+        input.setHintTextColor(0xFF555555);
+        input.setTextColor(Ui.WHITE);
+        input.setTextSize(15);
+        input.setTypeface(LIGHT);
+        input.setBackground(null);
+        input.setSingleLine(true);
+        input.setPadding(0, dp(13), 0, dp(13));
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        input.setImeOptions(claude ? EditorInfo.IME_ACTION_SEND : EditorInfo.IME_ACTION_SEARCH);
+        input.setOnEditorActionListener((v, actionId, event) -> {
+            submit(input, claude);
+            return true;
+        });
+        bar.addView(input, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView go = Ui.text(this, "›", 22, claude ? Game.accent(this) : Ui.GRAY);
+        go.setPadding(dp(12), dp(4), dp(8), dp(6));
+        go.setOnClickListener(v -> submit(input, claude));
+        bar.addView(go);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(10);
+        bar.setLayoutParams(lp);
+        return bar;
+    }
+
+    private void submit(EditText input, boolean claude) {
+        String q = input.getText().toString().trim();
+        input.setText("");
+        input.clearFocus();
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) imm.hideSoftInputFromWindow(input.getWindowToken(), 0);
+        if (claude) askClaude(q);
+        else searchGoogle(q);
+    }
+
+    private void searchGoogle(String q) {
+        if (q.isEmpty()) {
+            openUrl("https://www.google.com");
+            return;
+        }
+        try {
+            Intent i = new Intent(Intent.ACTION_WEB_SEARCH);
+            i.putExtra(SearchManager.QUERY, q);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Exception e) {
+            openUrl("https://www.google.com/search?q=" + Uri.encode(q));
+        }
+    }
+
+    private void askClaude(String q) {
+        if (q.isEmpty()) {
+            Intent launch = getPackageManager().getLaunchIntentForPackage(CLAUDE_PKG);
+            if (launch != null) {
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(launch);
+            } else {
+                openUrl("https://claude.ai/new");
+            }
+            return;
+        }
+        try {
+            Intent i = new Intent(Intent.ACTION_SEND);
+            i.setType("text/plain");
+            i.putExtra(Intent.EXTRA_TEXT, q);
+            i.setPackage(CLAUDE_PKG);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Exception e) {
+            openUrl("https://claude.ai/new?q=" + Uri.encode(q));
+        }
+    }
+
+    private void openUrl(String url) {
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Exception ignored) {
+        }
     }
 
     // ================= Ruhiger Start =================
