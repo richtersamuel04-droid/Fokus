@@ -19,7 +19,6 @@ public class MainActivity extends Activity {
 
     private TextView status;
     private TextView counter;
-    private TextView stats;
     private LinearLayout colorRow;
 
     @Override
@@ -39,11 +38,6 @@ public class MainActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         box.addView(title);
         box.addView(Ui.text(this, "Reels blocken. Ruhiger Homescreen. Mehr schaffen.", 15, Ui.GRAY));
-
-        section(box, "Dein Fortschritt");
-        stats = Ui.text(this, "", 16, Ui.WHITE);
-        stats.setLineSpacing(0, 1.3f);
-        box.addView(stats);
 
         section(box, "1. Reels-Block");
         status = Ui.text(this, "", 17, Ui.WHITE);
@@ -97,12 +91,9 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         boolean on = isBlockerOn();
-        status.setText(on ? "✅ Aktiv – Reels werden blockiert" : "❌ Noch nicht aktiv");
+        status.setText(on ? "Aktiv – Reels werden blockiert" : "Noch nicht aktiv");
+        status.setTextColor(on ? Game.accent(this) : 0xFFE57373);
         counter.setText("Bisher blockiert: " + Prefs.blockCount(this) + "×");
-        int xp = Game.xp(this);
-        stats.setText("Level " + Game.level(xp) + "  ·  " + xp + " XP gesamt\n"
-                + "🔥 Serie: " + Game.streak(this) + " Tage  ·  Rekord: " + Game.bestStreak(this) + " Tage\n"
-                + "🚫 Reels blockiert: " + Prefs.blockCount(this) + "×");
         refreshColors();
     }
 

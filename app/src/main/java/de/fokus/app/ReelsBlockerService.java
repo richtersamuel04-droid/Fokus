@@ -107,7 +107,7 @@ public class ReelsBlockerService extends AccessibilityService {
         Prefs.incBlockCount(this);
         if (now - lastToast > 4000) {
             lastToast = now;
-            Toast.makeText(this, "Reels blockiert – zurück an die Arbeit 💪", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Reels sind blockiert", Toast.LENGTH_SHORT).show();
         }
         // Nachprüfen: Falls man noch in Reels ist, wird erneut zurückgeschickt.
         handler.postDelayed(check, 800);

@@ -3,10 +3,8 @@
 ## Was die App macht
 - **Reels-Block:** Öffnest du in Instagram Reels (Reels-Tab oder ein Reel aus Feed/DMs), wirst du sofort zurückgeschickt. Feed, Stories und Nachrichten funktionieren normal.
 - **Ruhiger Homescreen:** Schwarz, Uhrzeit, Datum, max. 6 Apps als Text, keine Icons und keine roten Badges. Alle anderen Apps gibt's nur über „Alle Apps“ plus Suche.
-- **Spiel:** XP, Level mit Fortschrittsbalken und eine 🔥-Serie für jeden Tag, an dem du etwas abhakst.
-- **Tagesziele:** bis zu 3 Ziele auf dem Homescreen. Antippen = erledigt, lange drücken = löschen.
-- **Challenge & Spruch des Tages:** jeden Tag neu.
-- **Akzentfarbe:** 6 Farben, auf Wunsch täglich wechselnd, mit pulsierendem Leuchten hinter der Uhr.
+- **Tagesziele:** bis zu 3 Ziele auf dem Homescreen. Antippen = erledigt, lange drücken = entfernen.
+- **Akzentfarbe:** 6 Farben, auf Wunsch täglich wechselnd, mit dezentem Leuchten hinter der Uhr.
 - Zähler, wie oft du schon geblockt wurdest.
 
 ## APK bauen (kostenlos, ohne PC-Software)
