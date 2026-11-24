@@ -7,7 +7,10 @@ import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.graphics.drawable.GradientDrawable;
+import android.view.View;
 import android.widget.LinearLayout;
+import android.widget.Switch;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -16,6 +19,8 @@ public class MainActivity extends Activity {
 
     private TextView status;
     private TextView counter;
+    private TextView stats;
+    private LinearLayout colorRow;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,6 +39,11 @@ public class MainActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         box.addView(title);
         box.addView(Ui.text(this, "Reels blocken. Ruhiger Homescreen. Mehr schaffen.", 15, Ui.GRAY));
+
+        section(box, "Dein Fortschritt");
+        stats = Ui.text(this, "", 16, Ui.WHITE);
+        stats.setLineSpacing(0, 1.3f);
+        box.addView(stats);
 
         section(box, "1. Reels-Block");
         status = Ui.text(this, "", 17, Ui.WHITE);
@@ -60,7 +70,22 @@ public class MainActivity extends Activity {
         hint(box, "Auf dem Fokus-Homescreen lange drücken, um hierher zurückzukommen. "
                 + "Alle anderen Apps findest du unten über „Alle Apps“ – bewusst ein Schritt mehr.");
 
-        section(box, "3. Extra-Tipp: Graustufen");
+        section(box, "3. Akzentfarbe");
+        colorRow = new LinearLayout(this);
+        colorRow.setOrientation(LinearLayout.HORIZONTAL);
+        box.addView(colorRow);
+        Switch auto = new Switch(this);
+        auto.setText("Jeden Tag eine neue Farbe");
+        auto.setTextColor(Ui.WHITE);
+        auto.setChecked(Game.autoColor(this));
+        auto.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 4));
+        auto.setOnCheckedChangeListener((b, on) -> {
+            Game.setAutoColor(this, on);
+            refreshColors();
+        });
+        box.addView(auto);
+
+        section(box, "4. Extra-Tipp: Graustufen");
         hint(box, "Ein graues Handy lockt viel weniger. Samsung: Einstellungen → Digital Wellbeing "
                 + "→ Schlafenszeitmodus → Graustufen (auch dauerhaft per Zeitplan). "
                 + "Andere Handys: Bedienungshilfen → Farbkorrektur/Graustufen.");
@@ -74,6 +99,36 @@ public class MainActivity extends Activity {
         boolean on = isBlockerOn();
         status.setText(on ? "✅ Aktiv – Reels werden blockiert" : "❌ Noch nicht aktiv");
         counter.setText("Bisher blockiert: " + Prefs.blockCount(this) + "×");
+        int xp = Game.xp(this);
+        stats.setText("Level " + Game.level(xp) + "  ·  " + xp + " XP gesamt\n"
+                + "🔥 Serie: " + Game.streak(this) + " Tage  ·  Rekord: " + Game.bestStreak(this) + " Tage\n"
+                + "🚫 Reels blockiert: " + Prefs.blockCount(this) + "×");
+        refreshColors();
+    }
+
+    private void refreshColors() {
+        colorRow.removeAllViews();
+        int current = Game.colorIndex(this);
+        boolean auto = Game.autoColor(this);
+        for (int i = 0; i < Content.COLORS.length; i++) {
+            final int idx = i;
+            View dot = new View(this);
+            GradientDrawable g = new GradientDrawable();
+            g.setShape(GradientDrawable.OVAL);
+            g.setColor(Content.COLORS[i]);
+            if (i == current) g.setStroke(Ui.dp(this, 3), Ui.WHITE);
+            dot.setBackground(g);
+            dot.setAlpha(auto && i != current ? 0.35f : 1f);
+            dot.setContentDescription(Content.COLOR_NAMES[i]);
+            dot.setOnClickListener(v -> {
+                Game.setAutoColor(this, false);
+                Game.setColorIndex(this, idx);
+                recreate();
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 40), Ui.dp(this, 40));
+            lp.rightMargin = Ui.dp(this, 12);
+            colorRow.addView(dot, lp);
+        }
     }
 
     private boolean isBlockerOn() {

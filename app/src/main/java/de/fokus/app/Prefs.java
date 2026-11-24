@@ -9,7 +9,7 @@ import java.util.List;
 final class Prefs {
     private Prefs() {}
 
-    private static SharedPreferences p(Context c) {
+    static SharedPreferences p(Context c) {
         return c.getSharedPreferences("fokus", Context.MODE_PRIVATE);
     }
 
