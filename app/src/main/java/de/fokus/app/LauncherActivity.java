@@ -107,6 +107,7 @@ public class LauncherActivity extends Activity {
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setBackgroundColor(Color.BLACK);
+        content.setFocusableInTouchMode(true); // Tastatur nicht automatisch öffnen
         content.setPadding(dp(28), dp(40), dp(28), dp(20));
 
         // --- Uhr + Fokus ---
