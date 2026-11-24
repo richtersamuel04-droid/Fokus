@@ -652,13 +652,11 @@ public class LauncherActivity extends Activity {
 
     // ================= Google- & Claude-Leiste =================
 
-    private static final String CLAUDE_PKG = "com.anthropic.claude";
-
     private View searchBar(String hint, boolean claude) {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(18), 0, dp(10), 0);
+        bar.setPadding(dp(18), dp(13), dp(18), dp(13));
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(dp(24));
         bg.setColor(0xFF111111);
@@ -674,90 +672,22 @@ public class LauncherActivity extends Activity {
         dotLp.rightMargin = dp(14);
         bar.addView(dot, dotLp);
 
-        EditText input = new EditText(this);
-        input.setHint(hint);
-        input.setHintTextColor(0xFF555555);
-        input.setTextColor(Ui.WHITE);
-        input.setTextSize(15);
-        input.setTypeface(LIGHT);
-        input.setBackground(null);
-        input.setSingleLine(true);
-        input.setPadding(0, dp(13), 0, dp(13));
-        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-        input.setImeOptions(claude ? EditorInfo.IME_ACTION_SEND : EditorInfo.IME_ACTION_SEARCH);
-        input.setOnEditorActionListener((v, actionId, event) -> {
-            submit(input, claude);
-            return true;
-        });
-        bar.addView(input, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView t = Ui.text(this, hint, 15, 0xFF666666);
+        t.setTypeface(LIGHT);
+        bar.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        TextView go = Ui.text(this, "›", 22, claude ? Game.accent(this) : Ui.GRAY);
-        go.setPadding(dp(12), dp(4), dp(8), dp(6));
-        go.setOnClickListener(v -> submit(input, claude));
-        bar.addView(go);
+        bar.setOnClickListener(v -> {
+            Intent i = new Intent(this, QueryActivity.class);
+            i.putExtra(QueryActivity.EXTRA_CLAUDE, claude);
+            startActivity(i);
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+        });
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = dp(10);
         bar.setLayoutParams(lp);
         return bar;
-    }
-
-    private void submit(EditText input, boolean claude) {
-        String q = input.getText().toString().trim();
-        input.setText("");
-        input.clearFocus();
-        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-        if (imm != null) imm.hideSoftInputFromWindow(input.getWindowToken(), 0);
-        if (claude) askClaude(q);
-        else searchGoogle(q);
-    }
-
-    private void searchGoogle(String q) {
-        if (q.isEmpty()) {
-            openUrl("https://www.google.com");
-            return;
-        }
-        try {
-            Intent i = new Intent(Intent.ACTION_WEB_SEARCH);
-            i.putExtra(SearchManager.QUERY, q);
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(i);
-        } catch (Exception e) {
-            openUrl("https://www.google.com/search?q=" + Uri.encode(q));
-        }
-    }
-
-    private void askClaude(String q) {
-        if (q.isEmpty()) {
-            Intent launch = getPackageManager().getLaunchIntentForPackage(CLAUDE_PKG);
-            if (launch != null) {
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(launch);
-            } else {
-                openUrl("https://claude.ai/new");
-            }
-            return;
-        }
-        try {
-            Intent i = new Intent(Intent.ACTION_SEND);
-            i.setType("text/plain");
-            i.putExtra(Intent.EXTRA_TEXT, q);
-            i.setPackage(CLAUDE_PKG);
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(i);
-        } catch (Exception e) {
-            openUrl("https://claude.ai/new?q=" + Uri.encode(q));
-        }
-    }
-
-    private void openUrl(String url) {
-        try {
-            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(i);
-        } catch (Exception ignored) {
-        }
     }
 
     // ================= Ruhiger Start =================

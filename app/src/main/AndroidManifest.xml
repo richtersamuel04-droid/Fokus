@@ -49,6 +49,13 @@
         </activity>
 
         <activity
+            android:name=".QueryActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:windowSoftInputMode="stateVisible|adjustResize" />
+
+        <activity
             android:name=".AppListActivity"
             android:exported="false" />
 
