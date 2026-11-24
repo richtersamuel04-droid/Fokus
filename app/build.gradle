@@ -10,8 +10,23 @@ android {
         applicationId 'de.fokus.app'
         minSdk 26
         targetSdk 34
-        versionCode 2
-        versionName '2.0'
+        versionCode 3
+        versionName '2.1'
+    }
+
+    signingConfigs {
+        fokus {
+            storeFile file('fokus.keystore')
+            storePassword 'fokus123'
+            keyAlias 'fokus'
+            keyPassword 'fokus123'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.fokus
+        }
     }
 
     compileOptions {
