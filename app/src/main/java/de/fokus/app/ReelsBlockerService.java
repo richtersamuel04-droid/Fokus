@@ -131,6 +131,26 @@ public class ReelsBlockerService extends AccessibilityService {
         }
     }
 
+    // ---------- Für Wischgesten auf dem Homescreen ----------
+    private static ReelsBlockerService instance;
+
+    @Override
+    protected void onServiceConnected() {
+        super.onServiceConnected();
+        instance = this;
+    }
+
+    @Override
+    public boolean onUnbind(android.content.Intent intent) {
+        instance = null;
+        return super.onUnbind(intent);
+    }
+
+    /** Führt eine System-Aktion aus (z. B. Bildschirm sperren). false, wenn der Dienst nicht läuft. */
+    static boolean global(int action) {
+        return instance != null && instance.performGlobalAction(action);
+    }
+
     @Override
     public void onInterrupt() {}
 }

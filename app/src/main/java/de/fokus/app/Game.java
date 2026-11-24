@@ -68,6 +68,19 @@ final class Game {
 
     static void setQuietUntil(Context c, int hour) { Prefs.p(c).edit().putInt("quiet_until", hour).apply(); }
 
+    // ---------- Abendmodus ----------
+    /** Stunde, ab der der Abendmodus gilt (bis 5 Uhr); -1 = aus. */
+    static int eveningFrom(Context c) { return Prefs.p(c).getInt("evening_from", 22); }
+
+    static void setEveningFrom(Context c, int hour) { Prefs.p(c).edit().putInt("evening_from", hour).apply(); }
+
+    static boolean eveningActive(Context c) {
+        int from = eveningFrom(c);
+        if (from < 0) return false;
+        int h = java.time.LocalTime.now().getHour();
+        return h >= from || h < 5;
+    }
+
     // ---------- Wochenleiste ----------
     static boolean doneOn(Context c, String day) {
         return ("," + Prefs.p(c).getString("done_days", "") + ",").contains("," + day + ",");

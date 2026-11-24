@@ -20,7 +20,9 @@ public class MainActivity extends Activity {
     private TextView status;
     private TextView counter;
     private LinearLayout colorRow;
-    private android.widget.Button quietButton;
+    private android.widget.Button quietButton, eveningButton;
+    private LinearLayout contactsBox;
+    private static final int PICK_CONTACT = 42;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,6 +76,30 @@ public class MainActivity extends Activity {
         hint(box, "Ruhiger Start: Bis zu dieser Uhrzeit ist „Alle Apps“ ausgeblendet – "
                 + "nur Uhr, Termine und deine Homescreen-Apps.");
 
+        eveningButton = Ui.button(this, "", this::chooseEvening);
+        box.addView(eveningButton);
+        hint(box, "Abendmodus: Ab dieser Uhrzeit (bis 5 Uhr) wird der Homescreen gedimmt und ruhiger.");
+        hint(box, "Gesten auf dem Homescreen: nach oben wischen = Alle Apps, nach unten wischen = "
+                + "Benachrichtigungen, Doppeltipp auf eine leere Stelle = Bildschirm aus "
+                + "(Doppeltipp braucht den aktiven Reels-Block).");
+
+        section(box, "Schnellkontakte");
+        contactsBox = new LinearLayout(this);
+        contactsBox.setOrientation(LinearLayout.VERTICAL);
+        box.addView(contactsBox);
+        box.addView(Ui.button(this, "Kontakt hinzufügen (max. 4)", () -> {
+            if (QuickContacts.all(this).size() >= QuickContacts.MAX) {
+                android.widget.Toast.makeText(this, "Maximal 4 Kontakte", android.widget.Toast.LENGTH_SHORT).show();
+                return;
+            }
+            try {
+                startActivityForResult(new Intent(Intent.ACTION_PICK,
+                        android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI), PICK_CONTACT);
+            } catch (Exception ignored) {
+            }
+        }));
+        hint(box, "Auf dem Homescreen: antippen = Anrufen oder WhatsApp, lange drücken = entfernen.");
+
         section(box, "3. Akzentfarbe");
         colorRow = new LinearLayout(this);
         colorRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -124,8 +150,55 @@ public class MainActivity extends Activity {
         quietButton.setText("Ruhiger Start: " + (h < 0 ? "aus" : "bis " + h + ":00"));
     }
 
+    private void chooseEvening() {
+        String[] labels = {"Aus", "ab 20:00", "ab 21:00", "ab 22:00", "ab 23:00"};
+        int[] hours = {-1, 20, 21, 22, 23};
+        new android.app.AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("Abendmodus")
+                .setItems(labels, (d, which) -> {
+                    Game.setEveningFrom(this, hours[which]);
+                    updateEveningButton();
+                })
+                .show();
+    }
+
+    private void updateEveningButton() {
+        int h = Game.eveningFrom(this);
+        eveningButton.setText("Abendmodus: " + (h < 0 ? "aus" : "ab " + h + ":00"));
+    }
+
+    private void refreshContactList() {
+        contactsBox.removeAllViews();
+        java.util.List<String[]> list = QuickContacts.all(this);
+        if (list.isEmpty()) {
+            contactsBox.addView(Ui.text(this, "Noch keine Kontakte", 14, Ui.DARK_GRAY));
+            return;
+        }
+        for (String[] c : list) {
+            TextView t = Ui.text(this, c[0] + "   " + c[1], 15, Ui.WHITE);
+            t.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 4));
+            contactsBox.addView(t);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != PICK_CONTACT || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        String[] proj = {
+                android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER};
+        try (android.database.Cursor c = getContentResolver().query(data.getData(), proj, null, null, null)) {
+            if (c != null && c.moveToFirst()) QuickContacts.add(this, c.getString(0), c.getString(1));
+        } catch (Exception ignored) {
+        }
+        refreshContactList();
+    }
+
     private void refreshColors() {
         updateQuietButton();
+        updateEveningButton();
+        refreshContactList();
         colorRow.removeAllViews();
         int current = Game.colorIndex(this);
         boolean auto = Game.autoColor(this);

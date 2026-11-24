@@ -29,7 +29,9 @@ import android.provider.CalendarContract;
 import android.provider.Settings;
 import android.text.InputType;
 import android.text.TextUtils;
+import android.view.GestureDetector;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
@@ -71,7 +73,8 @@ public class LauncherActivity extends Activity {
     private int accent;
     private LinearLayout content;
     private TextView focusPill, importantText, allApps, quietHint;
-    private LinearLayout eventBox, screenBox, appsGrid;
+    private LinearLayout eventBox, screenBox, appsGrid, contactsRow;
+    private GestureDetector flingDetector;
     private ObjectAnimator barAnim;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -88,6 +91,7 @@ public class LauncherActivity extends Activity {
             refreshEvents();
             refreshScreenTime();
             refreshQuiet();
+            refreshEvening();
             handler.postDelayed(this, 60_000);
         }
     };
@@ -166,6 +170,11 @@ public class LauncherActivity extends Activity {
         content.addView(new View(this), new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
+        contactsRow = new LinearLayout(this);
+        contactsRow.setOrientation(LinearLayout.HORIZONTAL);
+        contactsRow.setPadding(0, 0, 0, dp(6));
+        content.addView(contactsRow);
+
         content.addView(searchBar("Google durchsuchen", false));
         content.addView(searchBar("Claude fragen", true));
 
@@ -195,6 +204,7 @@ public class LauncherActivity extends Activity {
         content.setOnLongClickListener(openSettings);
         head.setOnLongClickListener(openSettings);
 
+        setupGestures();
         setContentView(content);
     }
 
@@ -207,7 +217,9 @@ public class LauncherActivity extends Activity {
         refreshEvents();
         refreshScreenTime();
         refreshApps();
+        refreshContacts();
         refreshQuiet();
+        refreshEvening();
         handler.removeCallbacks(tick);
         if (Game.focusActive(this)) handler.postDelayed(tick, 1000);
         handler.removeCallbacks(minuteRefresh);
@@ -485,8 +497,7 @@ public class LauncherActivity extends Activity {
 
     private void refreshScreenTime() {
         screenBox.removeAllViews();
-        long ms = screenTimeToday();
-        if (ms < 0) {
+        if (!usageAllowed()) {
             TextView t = Ui.text(this, "Bildschirmzeit anzeigen", 14, Ui.DARK_GRAY);
             t.setTypeface(LIGHT);
             t.setOnClickListener(v -> {
@@ -498,15 +509,18 @@ public class LauncherActivity extends Activity {
             screenBox.addView(t);
             return;
         }
-        long min = ms / 60_000;
-        String time = min < 60 ? min + " min" : (min / 60) + " h " + (min % 60) + " min";
+        long now = System.currentTimeMillis();
+        long dayStart = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        long today = usage(dayStart, now);
+        long yesterday = usage(dayStart - 86_400_000L, now - 86_400_000L);
+        long avg = weekAverage(dayStart);
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         TextView l = Ui.text(this, "Heute am Handy", 14, Ui.DARK_GRAY);
         l.setTypeface(LIGHT);
         row.addView(l, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView v = Ui.text(this, time, 14, 0xFFCCCCCC);
+        TextView v = Ui.text(this, duration(today), 14, 0xFFCCCCCC);
         v.setTypeface(REGULAR);
         row.addView(v);
         screenBox.addView(row);
@@ -518,25 +532,78 @@ public class LauncherActivity extends Activity {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3));
         lp.topMargin = dp(8);
         screenBox.addView(bar, lp);
-        int target = (int) Math.min(1000, ms * 1000 / (4 * 3600_000L)); // Linie = 4 Stunden
+        int target = (int) Math.min(1000, today * 1000 / (4 * 3600_000L)); // Linie = 4 Stunden
         ObjectAnimator a = ObjectAnimator.ofInt(bar, "progress", 0, target);
         a.setDuration(900);
         a.setInterpolator(new DecelerateInterpolator());
         a.start();
+
+        // Vergleich mit gestern (gleiche Uhrzeit) und Schnitt der letzten 7 Tage
+        long diff = today - yesterday;
+        String cmp;
+        int color;
+        if (yesterday == 0 && today > 0) {
+            cmp = "";
+            color = Ui.DARK_GRAY;
+        } else if (Math.abs(diff) < 5 * 60_000L) {
+            cmp = "Etwa wie gestern um diese Zeit";
+            color = Ui.DARK_GRAY;
+        } else if (diff < 0) {
+            cmp = "▼ " + duration(-diff) + " weniger als gestern um diese Zeit";
+            color = accent;
+        } else {
+            cmp = "▲ " + duration(diff) + " mehr als gestern um diese Zeit";
+            color = 0xFFBBBBBB;
+        }
+        if (avg > 0) cmp += (cmp.isEmpty() ? "" : "\n") + "Ø letzte 7 Tage: " + duration(avg);
+        if (!cmp.isEmpty()) {
+            TextView c = Ui.text(this, cmp, 12, color);
+            c.setTypeface(LIGHT);
+            c.setLineSpacing(0, 1.2f);
+            c.setPadding(0, dp(8), 0, 0);
+            screenBox.addView(c);
+        }
     }
 
-    /** Bildschirmzeit seit Mitternacht in ms (ohne Fokus selbst), -1 ohne Berechtigung. */
-    private long screenTimeToday() {
+    private static String duration(long ms) {
+        long min = ms / 60_000;
+        if (min < 60) return min + " min";
+        return (min / 60) + " h " + (min % 60) + " min";
+    }
+
+    private boolean usageAllowed() {
         AppOpsManager ops = (AppOpsManager) getSystemService(APP_OPS_SERVICE);
         int mode = ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), getPackageName());
-        if (mode != AppOpsManager.MODE_ALLOWED) return -1;
+        return mode == AppOpsManager.MODE_ALLOWED;
+    }
 
+    /** Durchschnitt der letzten 7 vollen Tage (nur Tage mit Daten), einmal pro Tag berechnet. */
+    private long weekAverage(long dayStart) {
+        String key = LocalDate.now().toString();
+        if (key.equals(Prefs.p(this).getString("avg_day", ""))) return Prefs.p(this).getLong("avg_val", 0);
+        long sum = 0;
+        int days = 0;
+        for (int i = 1; i <= 7; i++) {
+            long s = dayStart - i * 86_400_000L;
+            long u = usage(s, s + 86_400_000L);
+            if (u > 0) {
+                sum += u;
+                days++;
+            }
+        }
+        long avg = days == 0 ? 0 : sum / days;
+        Prefs.p(this).edit().putString("avg_day", key).putLong("avg_val", avg).apply();
+        return avg;
+    }
+
+    /** Vordergrundzeit aller Apps (ohne Fokus selbst) zwischen start und end. */
+    private long usage(long start, long end) {
         UsageStatsManager um = (UsageStatsManager) getSystemService(USAGE_STATS_SERVICE);
-        long start = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
-        long now = System.currentTimeMillis();
-        UsageEvents events = um.queryEvents(start, now);
+        UsageEvents events = um.queryEvents(start, end);
+        if (events == null) return 0;
         Map<String, Long> open = new HashMap<>();
         long total = 0;
+        String self = getPackageName();
         UsageEvents.Event e = new UsageEvents.Event();
         while (events.hasNextEvent()) {
             events.getNextEvent(e);
@@ -546,15 +613,162 @@ public class LauncherActivity extends Activity {
                 if (!open.containsKey(pkg)) open.put(pkg, e.getTimeStamp());
             } else if (type == 2) { // Hintergrund
                 Long s = open.remove(pkg);
-                if (s != null && !pkg.equals(getPackageName())) total += e.getTimeStamp() - s;
+                if (s != null && !pkg.equals(self)) total += e.getTimeStamp() - s;
             } else if (type == 16) { // Bildschirm aus
                 for (Map.Entry<String, Long> en : open.entrySet()) {
-                    if (!en.getKey().equals(getPackageName())) total += e.getTimeStamp() - en.getValue();
+                    if (!en.getKey().equals(self)) total += e.getTimeStamp() - en.getValue();
                 }
                 open.clear();
             }
         }
         return total;
+    }
+
+    // ================= Schnellkontakte =================
+
+    private void refreshContacts() {
+        contactsRow.removeAllViews();
+        List<String[]> list = QuickContacts.all(this);
+        contactsRow.setVisibility(list.isEmpty() ? View.GONE : View.VISIBLE);
+        for (int i = 0; i < list.size(); i++) {
+            final int idx = i;
+            final String name = list.get(i)[0], number = list.get(i)[1];
+
+            LinearLayout cell = new LinearLayout(this);
+            cell.setOrientation(LinearLayout.VERTICAL);
+            cell.setGravity(Gravity.CENTER_HORIZONTAL);
+
+            TextView circle = Ui.text(this, QuickContacts.initials(name), 16, accent);
+            circle.setTypeface(LIGHT);
+            circle.setGravity(Gravity.CENTER);
+            GradientDrawable bg = new GradientDrawable();
+            bg.setShape(GradientDrawable.OVAL);
+            bg.setColor(Color.TRANSPARENT);
+            bg.setStroke(dp(1), withAlpha(accent, 0x99));
+            circle.setBackground(bg);
+            cell.addView(circle, new LinearLayout.LayoutParams(dp(46), dp(46)));
+
+            TextView n = Ui.text(this, QuickContacts.firstName(name), 11, Ui.GRAY);
+            n.setTypeface(LIGHT);
+            n.setSingleLine(true);
+            n.setEllipsize(TextUtils.TruncateAt.END);
+            n.setGravity(Gravity.CENTER);
+            n.setPadding(0, dp(5), 0, 0);
+            cell.addView(n, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+
+            cell.setOnClickListener(v -> new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                    .setTitle(name)
+                    .setItems(new String[]{"Anrufen", "WhatsApp"}, (d, which) -> {
+                        if (which == 0) call(number);
+                        else openUrl("https://wa.me/" + QuickContacts.waNumber(number));
+                    })
+                    .show());
+            cell.setOnLongClickListener(v -> {
+                new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                        .setTitle(name + " entfernen?")
+                        .setPositiveButton("Entfernen", (d, w) -> {
+                            QuickContacts.remove(this, idx);
+                            refreshContacts();
+                        })
+                        .setNegativeButton("Abbrechen", null)
+                        .show();
+                return true;
+            });
+            contactsRow.addView(cell, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        }
+        for (int i = list.size(); i < QuickContacts.MAX && !list.isEmpty(); i++) {
+            contactsRow.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        }
+    }
+
+    private void call(String number) {
+        Uri uri = Uri.parse("tel:" + Uri.encode(number));
+        if (checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                startActivity(new Intent(Intent.ACTION_CALL, uri));
+                return;
+            } catch (Exception ignored) {
+            }
+        } else {
+            requestPermissions(new String[]{Manifest.permission.CALL_PHONE}, 8);
+        }
+        try {
+            startActivity(new Intent(Intent.ACTION_DIAL, uri));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openUrl(String url) {
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Exception ignored) {
+        }
+    }
+
+    // ================= Wischgesten =================
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (flingDetector != null) flingDetector.onTouchEvent(ev);
+        return super.dispatchTouchEvent(ev);
+    }
+
+    private void setupGestures() {
+        flingDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
+                if (e1 == null) return false;
+                float dy = e2.getY() - e1.getY(), dx = e2.getX() - e1.getX();
+                if (Math.abs(dy) < dp(90) || Math.abs(dy) < Math.abs(dx) * 1.5f || Math.abs(vy) < 900) return false;
+                if (dy < 0) openAllApps();
+                else openNotifications();
+                return true;
+            }
+        });
+        GestureDetector tapDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onDoubleTap(MotionEvent e) {
+                lockScreen();
+                return true;
+            }
+        });
+        // Doppeltipp nur auf leere Fläche (nicht auf Apps, Termine usw.)
+        content.setOnTouchListener((v, e) -> {
+            tapDetector.onTouchEvent(e);
+            return false;
+        });
+    }
+
+    private void openAllApps() {
+        int until = Game.quietUntil(this);
+        if (until >= 0 && LocalTime.now().getHour() < until) return; // Ruhiger Start
+        startActivity(new Intent(this, AppListActivity.class));
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+    }
+
+    private void openNotifications() {
+        if (ReelsBlockerService.global(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)) return;
+        try {
+            Object sbm = getSystemService("statusbar");
+            Class.forName("android.app.StatusBarManager").getMethod("expandNotificationsPanel").invoke(sbm);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void lockScreen() {
+        if (Build.VERSION.SDK_INT >= 28 && ReelsBlockerService.global(
+                android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)) return;
+        android.widget.Toast.makeText(this, "Für Doppeltipp-Sperre den Reels-Block aktivieren",
+                android.widget.Toast.LENGTH_SHORT).show();
+    }
+
+    // ================= Abendmodus =================
+
+    private void refreshEvening() {
+        content.animate().alpha(Game.eveningActive(this) ? 0.5f : 1f).setDuration(600).start();
     }
 
     // ================= Apps =================
