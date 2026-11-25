@@ -52,6 +52,7 @@ final class Ui {
             return;
         }
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Protokoll.log(c, "APP", "Starte " + pkg);
         android.app.ActivityOptions o = android.app.ActivityOptions.makeScaleUpAnimation(
                 v, 0, 0, v.getWidth(), v.getHeight());
         c.startActivity(i, o.toBundle());

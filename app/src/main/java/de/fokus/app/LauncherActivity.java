@@ -240,6 +240,7 @@ public class LauncherActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        Protokoll.log(this, "HOME", "Homescreen geöffnet (Seite: " + (onInfo ? "Heute" : "Haupt") + ")");
         accent = Game.accent(this);
         updateFocusPill();
         refreshImportant();
@@ -764,6 +765,7 @@ public class LauncherActivity extends Activity {
                 if (!dragging && Math.abs(dx) > dp(14) && Math.abs(dx) > Math.abs(dy) * 1.3f
                         && ((dx < 0 && !onInfo) || (dx > 0 && onInfo))) {
                     dragging = true;
+                    Protokoll.log(this, "SEITE", "Ziehen gestartet (" + (onInfo ? "zurück zur Hauptseite" : "zu Heute") + ")");
                     if (settleAnim != null) settleAnim.cancel();
                     dragStartProgress = progress;
                     downX = ev.getRawX();
@@ -798,6 +800,8 @@ public class LauncherActivity extends Activity {
                     if (vx < -600) target = 1f;
                     else if (vx > 600) target = 0f;
                     else target = progress > 0.5f ? 1f : 0f;
+                    Protokoll.log(this, "SEITE", String.format(Locale.GERMANY,
+                            "Losgelassen bei %.0f%%, Tempo %.0f → %s", progress * 100, vx, target > 0.5f ? "Heute" : "Hauptseite"));
                     animateTo(target);
                     return true;
                 }
@@ -868,8 +872,14 @@ public class LauncherActivity extends Activity {
             public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
                 if (e1 == null) return false;
                 float dy = e2.getY() - e1.getY(), dx = e2.getX() - e1.getX();
+                Protokoll.log(LauncherActivity.this, "GESTE", String.format(Locale.GERMANY,
+                        "Wisch erkannt: dx=%.0fdp dy=%.0fdp vy=%.0f vx=%.0f", dx / dpf(), dy / dpf(), vy, vx));
 
-                if (Math.abs(dy) < dp(50) || Math.abs(dy) < Math.abs(dx) * 1.2f || Math.abs(vy) < 350) return false;
+                if (Math.abs(dy) < dp(50) || Math.abs(dy) < Math.abs(dx) * 1.2f || Math.abs(vy) < 350) {
+                    Protokoll.log(LauncherActivity.this, "GESTE", "→ zu kurz/zu langsam/zu schräg, ignoriert");
+                    return false;
+                }
+                Protokoll.log(LauncherActivity.this, "GESTE", dy < 0 ? "→ hoch: Alle Apps" : "→ runter: Benachrichtigungen");
                 if (dy < 0) openAllApps();
                 else openNotifications();
                 return true;
@@ -878,6 +888,7 @@ public class LauncherActivity extends Activity {
         GestureDetector tapDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onDoubleTap(MotionEvent e) {
+                Protokoll.log(LauncherActivity.this, "GESTE", "Doppeltipp → Bildschirm sperren");
                 lockScreen();
                 return true;
             }
@@ -894,6 +905,7 @@ public class LauncherActivity extends Activity {
     private void openAllApps() {
         int until = Game.quietUntil(this);
         if (until >= 0 && LocalTime.now().getHour() < until) { // Ruhiger Start
+            Protokoll.log(this, "GESTE", "Alle Apps gesperrt (ruhiger Start bis " + until + ":00)");
             android.widget.Toast.makeText(this, "Ruhiger Start bis " + until + ":00 – Alle Apps danach",
                     android.widget.Toast.LENGTH_SHORT).show();
             return;
@@ -903,6 +915,7 @@ public class LauncherActivity extends Activity {
 
     private void openNotifications() {
         if (ReelsBlockerService.global(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)) return;
+        Protokoll.log(this, "GESTE", "Benachrichtigungen: Dienst nicht aktiv, versuche Ersatzweg");
         try {
             Object sbm = getSystemService("statusbar");
             Class.forName("android.app.StatusBarManager").getMethod("expandNotificationsPanel").invoke(sbm);
@@ -1120,6 +1133,10 @@ public class LauncherActivity extends Activity {
 
     private int dp(int v) {
         return Ui.dp(this, v);
+    }
+
+    private float dpf() {
+        return getResources().getDisplayMetrics().density;
     }
 
     @Override

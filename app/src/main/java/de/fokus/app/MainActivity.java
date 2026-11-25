@@ -22,6 +22,13 @@ public class MainActivity extends Activity {
     private LinearLayout colorRow;
     private android.widget.Button quietButton, eveningButton;
     private LinearLayout contactsBox;
+    private TextView logInfo;
+
+    private void updateLogInfo() {
+        long kb = Protokoll.size(this) / 1024;
+        logInfo.setText((Protokoll.on(this) ? "Läuft – " : "Aus – ") + kb + " KB aufgezeichnet");
+        logInfo.setTextColor(Protokoll.on(this) ? Game.accent(this) : Ui.GRAY);
+    }
     private static final int PICK_CONTACT = 42;
 
     @Override
@@ -56,26 +63,43 @@ public class MainActivity extends Activity {
                 new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         Uri.parse("package:" + getPackageName())))));
 
-        section(box, "Reels kommen noch durch?");
-        hint(box, "1. Diagnose einschalten. 2. Instagram öffnen und genau dorthin gehen, wo Reels "
-                + "noch durchrutschen (ein paar Sekunden schauen). 3. Zurück hierher, „Diagnose kopieren“ "
-                + "und den Text an Claude schicken. Es werden nur interne Ansichtsnamen gespeichert, "
-                + "keine Inhalte, Namen oder Nachrichten.");
-        android.widget.Switch diag = new android.widget.Switch(this);
-        diag.setText("Diagnose aufzeichnen");
-        diag.setTextColor(Ui.WHITE);
-        diag.setChecked(Diagnose.on(this));
-        diag.setOnCheckedChangeListener((b, on) -> Diagnose.setOn(this, on));
-        box.addView(diag);
-        box.addView(Ui.button(this, "Diagnose kopieren", () -> {
-            String t = Diagnose.text(this);
+        section(box, "Aufzeichnung");
+        hint(box, "Schreibt mit, was die App tut: Gesten, Seitenwechsel, Reels-Erkennung und Fehler. "
+                + "So geht's: einschalten → das Problem nachstellen (z. B. zu Reels gehen oder hochwischen) → "
+                + "„Protokoll teilen“ → an Claude schicken. Gespeichert werden nur technische Daten, "
+                + "keine Inhalte, Namen oder Nachrichten. Abstürze werden immer mitgeschrieben.");
+        android.widget.Switch rec = new android.widget.Switch(this);
+        rec.setText("Aufzeichnung läuft");
+        rec.setTextColor(Ui.WHITE);
+        rec.setChecked(Protokoll.on(this));
+        rec.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
+        rec.setOnCheckedChangeListener((b, on) -> {
+            Protokoll.setOn(this, on);
+            updateLogInfo();
+        });
+        box.addView(rec);
+        logInfo = Ui.text(this, "", 13, Ui.GRAY);
+        box.addView(logInfo);
+        box.addView(Ui.button(this, "Protokoll teilen (z. B. an Claude)", () -> {
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("text/plain");
+            send.putExtra(Intent.EXTRA_SUBJECT, "Fokus-Protokoll");
+            send.putExtra(Intent.EXTRA_TEXT, Protokoll.text(this));
+            startActivity(Intent.createChooser(send, "Protokoll teilen"));
+        }));
+        box.addView(Ui.button(this, "Protokoll kopieren", () -> {
             android.content.ClipboardManager cm =
                     (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("Fokus Diagnose", t.isEmpty() ? "(leer)" : t));
-            android.widget.Toast.makeText(this, t.isEmpty() ? "Noch nichts aufgezeichnet"
-                    : "Kopiert – jetzt bei Claude einfügen", android.widget.Toast.LENGTH_SHORT).show();
+            String t = Protokoll.text(this);
+            if (t.length() > 90_000) t = t.substring(t.length() - 90_000);
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("Fokus-Protokoll", t));
+            android.widget.Toast.makeText(this, "Kopiert – jetzt bei Claude einfügen",
+                    android.widget.Toast.LENGTH_SHORT).show();
         }));
-        box.addView(Ui.button(this, "Diagnose leeren", () -> Diagnose.clear(this)));
+        box.addView(Ui.button(this, "Protokoll leeren", () -> {
+            Protokoll.clear(this);
+            updateLogInfo();
+        }));
 
         section(box, "2. Ruhiger Homescreen");
         box.addView(Ui.button(this, "Homescreen-Apps auswählen (max. 8)", () -> {
@@ -219,6 +243,7 @@ public class MainActivity extends Activity {
     private void refreshColors() {
         updateQuietButton();
         updateEveningButton();
+        updateLogInfo();
         refreshContactList();
         colorRow.removeAllViews();
         int current = Game.colorIndex(this);

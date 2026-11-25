@@ -40,22 +40,41 @@ public class ReelsBlockerService extends AccessibilityService {
     private boolean checkPending = false;
     private long lastBlock = 0;
     private long lastToast = 0;
+    private final StringBuilder lastBig = new StringBuilder();
+    private String lastReason = "", lastSummary = "";
 
     private final Runnable check = () -> {
         checkPending = false;
-        List<AccessibilityNodeInfo> roots = instagramRoots();
-        if (roots.isEmpty()) return;
-        if (Game.focusActive(this)) {
-            blockAll();
-            return;
-        }
-        boolean diag = Diagnose.on(this);
-        for (AccessibilityNodeInfo root : roots) {
-            int where = detectReels(root, diag);
-            if (where != NONE) {
-                block(root, where);
+        try {
+            List<AccessibilityNodeInfo> roots = instagramRoots();
+            if (roots.isEmpty()) return;
+            if (Game.focusActive(this)) {
+                Protokoll.log(this, "REELS", "Fokusblock aktiv → Instagram geschlossen");
+                blockAll();
                 return;
             }
+            boolean diag = Diagnose.on(this);
+            for (AccessibilityNodeInfo root : roots) {
+                lastBig.setLength(0);
+                lastReason = "";
+                int where = detectReels(root, diag);
+                if (where != NONE) {
+                    Protokoll.log(this, "REELS", "ERKANNT (" + (where == PLAYER ? "Player" : "Tab") + ") durch: "
+                            + lastReason + " | Fenster: " + roots.size());
+                    block(root, where);
+                    return;
+                }
+            }
+            if (Protokoll.on(this)) {
+                String sum = "kein Reel erkannt | Fenster: " + roots.size() + " | große Ansichten: "
+                        + (lastBig.length() == 0 ? "–" : lastBig.toString());
+                if (!sum.equals(lastSummary)) {
+                    lastSummary = sum;
+                    Protokoll.log(this, "REELS", sum);
+                }
+            }
+        } catch (Exception e) {
+            Protokoll.fehler(this, "Reels-Prüfung", e);
         }
     };
 
@@ -95,7 +114,10 @@ public class ReelsBlockerService extends AccessibilityService {
      */
     private int detectReels(AccessibilityNodeInfo root, boolean diag) {
         for (String id : REELS_VIEW_IDS) {
-            if (anyVisible(root.findAccessibilityNodeInfosByViewId(id))) return PLAYER;
+            if (anyVisible(root.findAccessibilityNodeInfosByViewId(id))) {
+                lastReason = "bekannte ID " + id.substring(id.indexOf(":id/") + 4);
+                return PLAYER;
+            }
         }
         int screenH = getResources().getDisplayMetrics().heightPixels;
         Rect r = new Rect();
@@ -114,12 +136,21 @@ public class ReelsBlockerService extends AccessibilityService {
 
             if (visible && id != null) {
                 String low = id.toLowerCase(Locale.ROOT);
+                if (r.height() >= screenH * 0.5 && lastBig.length() < 600) {
+                    lastBig.append(id.substring(id.indexOf(":id/") + 4)).append('(')
+                            .append(r.height() * 100 / Math.max(1, screenH)).append("%) ");
+                }
                 if (low.contains("clips") && !low.contains("clips_tab") && r.height() >= screenH * 0.6) {
+                    if (result == NONE) lastReason = "Vollbild-Ansicht " + id.substring(id.indexOf(":id/") + 4)
+                            + " (" + (r.height() * 100 / Math.max(1, screenH)) + "%)";
                     result = PLAYER;
                     if (!diag) return result;
                 }
                 if (low.endsWith(":id/clips_tab") && n.isSelected()) {
-                    if (result == NONE) result = TAB;
+                    if (result == NONE) {
+                        result = TAB;
+                        lastReason = "Reels-Tab ausgewählt";
+                    }
                     if (!diag) return result;
                 }
             }
@@ -127,7 +158,10 @@ public class ReelsBlockerService extends AccessibilityService {
                 CharSequence cd = n.getContentDescription(), tx = n.getText();
                 if ((cd != null && cd.toString().trim().equalsIgnoreCase("Reels"))
                         || (tx != null && tx.toString().trim().equalsIgnoreCase("Reels"))) {
-                    if (result == NONE) result = TAB;
+                    if (result == NONE) {
+                        result = TAB;
+                        lastReason = "ausgewählter Knopf „Reels“";
+                    }
                     if (!diag) return result;
                 }
             }
@@ -163,6 +197,7 @@ public class ReelsBlockerService extends AccessibilityService {
             }
         }
         if (!done) performGlobalAction(GLOBAL_ACTION_BACK);
+        Protokoll.log(this, "REELS", done ? "→ zum Feed gewechselt" : "→ Zurück gedrückt");
 
         Prefs.incBlockCount(this);
         if (now - lastToast > 4000) {
@@ -194,11 +229,13 @@ public class ReelsBlockerService extends AccessibilityService {
     protected void onServiceConnected() {
         super.onServiceConnected();
         instance = this;
+        Protokoll.log(this, "DIENST", "Reels-Block verbunden");
     }
 
     @Override
     public boolean onUnbind(android.content.Intent intent) {
         instance = null;
+        Protokoll.log(this, "DIENST", "Reels-Block getrennt");
         return super.onUnbind(intent);
     }
 
