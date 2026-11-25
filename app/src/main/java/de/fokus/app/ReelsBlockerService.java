@@ -175,7 +175,15 @@ public class ReelsBlockerService extends AccessibilityService {
                     if (!diag) return result;
                 }
             }
-            for (int i = n.getChildCount() - 1; i >= 0; i--) stack.push(n.getChild(i));
+            for (int i = n.getChildCount() - 1; i >= 0; i--) {
+                AccessibilityNodeInfo child;
+                try {
+                    child = n.getChild(i);
+                } catch (Exception e) {
+                    child = null;
+                }
+                if (child != null) stack.push(child); // Instagram liefert manchmal leere Kinder
+            }
         }
         return result;
     }
