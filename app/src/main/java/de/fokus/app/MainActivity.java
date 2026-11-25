@@ -81,7 +81,7 @@ public class MainActivity extends Activity {
         box.addView(Ui.button(this, "Homescreen-Apps auswählen (max. 8)", () -> {
             Intent i = new Intent(this, AppListActivity.class);
             i.putExtra(AppListActivity.EXTRA_PICK, true);
-            startActivity(i);
+            Ui.open(this, i);
         }));
         box.addView(Ui.button(this, "Fokus als Startbildschirm festlegen",
                 () -> startActivity(new Intent(Settings.ACTION_HOME_SETTINGS))));
@@ -265,5 +265,11 @@ public class MainActivity extends Activity {
         TextView t = Ui.text(this, s, 14, Ui.GRAY);
         t.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
         box.addView(t);
+    }
+
+    @Override
+    public void finish() {
+        super.finish();
+        Ui.close(this);
     }
 }

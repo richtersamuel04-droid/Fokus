@@ -32,6 +32,7 @@ import android.text.TextUtils;
 import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.MotionEvent;
+import android.view.VelocityTracker;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
@@ -174,7 +175,7 @@ public class LauncherActivity extends Activity {
         allApps = Ui.text(this, "Alle Apps", 13, Ui.DARK_GRAY);
         allApps.setTypeface(REGULAR);
         allApps.setPadding(dp(16), dp(6), dp(16), dp(6));
-        allApps.setOnClickListener(v -> startActivity(new Intent(this, AppListActivity.class)));
+        allApps.setOnClickListener(v -> Ui.open(this, new Intent(this, AppListActivity.class)));
         bottom.addView(allApps);
         quietHint = Ui.text(this, "", 13, 0xFF444444);
         quietHint.setTypeface(LIGHT);
@@ -219,7 +220,7 @@ public class LauncherActivity extends Activity {
         info.setVisibility(View.INVISIBLE);
 
         View.OnLongClickListener openSettings = v -> {
-            startActivity(new Intent(this, MainActivity.class));
+            Ui.open(this, new Intent(this, MainActivity.class));
             return true;
         };
         content.setOnLongClickListener(openSettings);
@@ -738,10 +739,127 @@ public class LauncherActivity extends Activity {
 
     // ================= Wischgesten =================
 
+    // ---- Seitenwechsel, der dem Finger folgt ----
+    private float downX, downY, dragStartProgress, progress = 0f;
+    private boolean dragging = false;
+    private VelocityTracker velocity;
+    private ValueAnimator settleAnim;
+
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
-        if (flingDetector != null) flingDetector.onTouchEvent(ev);
+        if (flingDetector != null && !dragging) flingDetector.onTouchEvent(ev);
+        int w = Math.max(1, rootFrame.getWidth());
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                downX = ev.getRawX();
+                downY = ev.getRawY();
+                dragging = false;
+                if (velocity != null) velocity.recycle();
+                velocity = VelocityTracker.obtain();
+                velocity.addMovement(ev);
+                break;
+            case MotionEvent.ACTION_MOVE: {
+                if (velocity != null) velocity.addMovement(ev);
+                float dx = ev.getRawX() - downX, dy = ev.getRawY() - downY;
+                if (!dragging && Math.abs(dx) > dp(14) && Math.abs(dx) > Math.abs(dy) * 1.3f
+                        && ((dx < 0 && !onInfo) || (dx > 0 && onInfo))) {
+                    dragging = true;
+                    if (settleAnim != null) settleAnim.cancel();
+                    dragStartProgress = progress;
+                    downX = ev.getRawX();
+                    if (!onInfo) {
+                        refreshImportant();
+                        refreshEvents();
+                        refreshScreenTime();
+                    }
+                    info.setVisibility(View.VISIBLE);
+                    MotionEvent cancel = MotionEvent.obtain(ev);
+                    cancel.setAction(MotionEvent.ACTION_CANCEL);
+                    super.dispatchTouchEvent(cancel); // Antippen darunter abbrechen
+                    cancel.recycle();
+                }
+                if (dragging) {
+                    applyProgress(clamp(dragStartProgress - (ev.getRawX() - downX) / w));
+                    return true;
+                }
+                break;
+            }
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                if (dragging) {
+                    dragging = false;
+                    float vx = 0;
+                    if (velocity != null) {
+                        velocity.addMovement(ev);
+                        velocity.computeCurrentVelocity(1000);
+                        vx = velocity.getXVelocity();
+                    }
+                    float target;
+                    if (vx < -600) target = 1f;
+                    else if (vx > 600) target = 0f;
+                    else target = progress > 0.5f ? 1f : 0f;
+                    animateTo(target);
+                    return true;
+                }
+                break;
+        }
         return super.dispatchTouchEvent(ev);
+    }
+
+    private static float clamp(float p) {
+        return Math.max(0f, Math.min(1f, p));
+    }
+
+    /** 0 = Hauptseite, 1 = Heute-Seite. Hauptseite weicht leicht zurück, Heute-Seite gleitet herein. */
+    private void applyProgress(float p) {
+        progress = p;
+        int w = rootFrame.getWidth();
+        info.setTranslationX(w * (1f - p));
+        content.setTranslationX(-w * 0.25f * p);
+        content.setAlpha(1f - 0.85f * p);
+        float sc = 1f - 0.04f * p;
+        content.setScaleX(sc);
+        content.setScaleY(sc);
+    }
+
+    private void animateTo(float target) {
+        if (settleAnim != null) settleAnim.cancel();
+        final boolean toInfo = target > 0.5f;
+        if (toInfo) info.setVisibility(View.VISIBLE);
+        long dur = (long) (180 + 220 * Math.abs(target - progress));
+        settleAnim = ValueAnimator.ofFloat(progress, target);
+        settleAnim.setDuration(dur);
+        settleAnim.setInterpolator(new DecelerateInterpolator(1.8f));
+        settleAnim.addUpdateListener(a -> applyProgress((float) a.getAnimatedValue()));
+        settleAnim.addListener(new android.animation.AnimatorListenerAdapter() {
+            boolean cancelled = false;
+
+            @Override
+            public void onAnimationCancel(android.animation.Animator animation) {
+                cancelled = true;
+            }
+
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                if (cancelled) return;
+                boolean wasInfo = onInfo;
+                onInfo = toInfo;
+                if (!toInfo) info.setVisibility(View.INVISIBLE);
+                if (toInfo && !wasInfo) staggerIn(info);
+            }
+        });
+        settleAnim.start();
+    }
+
+    /** Inhalte einer Seite gleiten nacheinander leicht von rechts herein. */
+    private void staggerIn(LinearLayout page) {
+        for (int i = 0; i < page.getChildCount(); i++) {
+            View v = page.getChildAt(i);
+            v.setAlpha(0f);
+            v.setTranslationX(dp(18));
+            v.animate().alpha(1f).translationX(0).setStartDelay(i * 55L).setDuration(360)
+                    .setInterpolator(new DecelerateInterpolator(1.5f)).start();
+        }
     }
 
     private void setupGestures() {
@@ -750,10 +868,7 @@ public class LauncherActivity extends Activity {
             public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
                 if (e1 == null) return false;
                 float dy = e2.getY() - e1.getY(), dx = e2.getX() - e1.getX();
-                if (Math.abs(dx) > dp(60) && Math.abs(dx) > Math.abs(dy) * 1.3f && Math.abs(vx) > 350) {
-                    showInfo(dx < 0);
-                    return true;
-                }
+
                 if (Math.abs(dy) < dp(50) || Math.abs(dy) < Math.abs(dx) * 1.2f || Math.abs(vy) < 350) return false;
                 if (dy < 0) openAllApps();
                 else openNotifications();
@@ -783,8 +898,7 @@ public class LauncherActivity extends Activity {
                     android.widget.Toast.LENGTH_SHORT).show();
             return;
         }
-        startActivity(new Intent(this, AppListActivity.class));
-        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+        Ui.open(this, new Intent(this, AppListActivity.class));
     }
 
     private void openNotifications() {
@@ -896,7 +1010,7 @@ public class LauncherActivity extends Activity {
             v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(80)
                     .withEndAction(() -> {
                         v.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
-                        Ui.launch(this, pkg);
+                        Ui.launchFrom(v, pkg);
                     }).start();
         });
         return cell;
@@ -942,8 +1056,7 @@ public class LauncherActivity extends Activity {
         h.setOnClickListener(v -> {
             Intent i = new Intent(this, QueryActivity.class);
             i.putExtra(QueryActivity.EXTRA_CLAUDE, claude);
-            startActivity(i);
-            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
+            Ui.open(this, i);
         });
         return h;
     }
@@ -967,25 +1080,15 @@ public class LauncherActivity extends Activity {
         return dots;
     }
 
-    /** Wechsel zwischen Seite 1 (Apps) und Seite 2 (Heute) mit Gleit-Animation. */
+    /** Wechsel zwischen Seite 1 (Apps) und Seite 2 (Heute), z. B. per Zurück- oder Home-Taste. */
     private void showInfo(boolean show) {
-        if (show == onInfo) return;
-        onInfo = show;
-        int w = rootFrame.getWidth();
-        if (show) {
+        if (show && !onInfo) {
             refreshImportant();
             refreshEvents();
             refreshScreenTime();
-            info.setTranslationX(w);
-            info.setVisibility(View.VISIBLE);
-            info.animate().translationX(0).setDuration(280).setInterpolator(new DecelerateInterpolator()).start();
-            content.animate().translationX(-w * 0.3f).alpha(0f).setDuration(280).start();
-        } else {
-            info.animate().translationX(w).setDuration(260).setInterpolator(new DecelerateInterpolator())
-                    .withEndAction(() -> info.setVisibility(View.INVISIBLE)).start();
-            content.setTranslationX(-w * 0.3f);
-            content.animate().translationX(0).alpha(1f).setDuration(260).start();
         }
+        if (show == onInfo && Math.abs(progress - (show ? 1f : 0f)) < 0.01f) return;
+        animateTo(show ? 1f : 0f);
     }
 
     // ================= Ruhiger Start =================

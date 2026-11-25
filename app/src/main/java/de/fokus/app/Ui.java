@@ -32,6 +32,31 @@ final class Ui {
         return b;
     }
 
+    /** Öffnet eine eigene Fokus-Seite mit weichem Übergang von unten. */
+    static void open(android.app.Activity a, Intent i) {
+        a.startActivity(i);
+        a.overridePendingTransition(R.anim.fokus_enter_up, R.anim.fokus_recede);
+    }
+
+    /** Schließt eine eigene Fokus-Seite weich nach unten. */
+    static void close(android.app.Activity a) {
+        a.overridePendingTransition(R.anim.fokus_return, R.anim.fokus_exit_down);
+    }
+
+    /** Startet eine App so, dass sie aus dem angetippten Icon heraus wächst. */
+    static void launchFrom(android.view.View v, String pkg) {
+        Context c = v.getContext();
+        Intent i = c.getPackageManager().getLaunchIntentForPackage(pkg);
+        if (i == null) {
+            Toast.makeText(c, "App nicht gefunden", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        android.app.ActivityOptions o = android.app.ActivityOptions.makeScaleUpAnimation(
+                v, 0, 0, v.getWidth(), v.getHeight());
+        c.startActivity(i, o.toBundle());
+    }
+
     static void launch(Context c, String pkg) {
         Intent i = c.getPackageManager().getLaunchIntentForPackage(pkg);
         if (i == null) {

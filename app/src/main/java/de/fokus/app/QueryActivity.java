@@ -89,6 +89,17 @@ public class QueryActivity extends Activity {
         root.setOnClickListener(v -> finish());
         setContentView(root);
         input.requestFocus();
+
+        // Titel und Leiste gleiten nacheinander herein
+        title.setAlpha(0f);
+        title.setTranslationY(Ui.dp(this, 12));
+        title.animate().alpha(1f).translationY(0).setStartDelay(80).setDuration(320)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+        bar.setAlpha(0f);
+        bar.setScaleX(0.94f);
+        bar.setTranslationY(Ui.dp(this, 24));
+        bar.animate().alpha(1f).scaleX(1f).translationY(0).setStartDelay(140).setDuration(380)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
     }
 
     private void submit(String q) {
@@ -134,5 +145,11 @@ public class QueryActivity extends Activity {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (Exception ignored) {
         }
+    }
+
+    @Override
+    public void finish() {
+        super.finish();
+        Ui.close(this);
     }
 }

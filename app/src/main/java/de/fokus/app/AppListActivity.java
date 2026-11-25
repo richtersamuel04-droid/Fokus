@@ -85,7 +85,7 @@ public class AppListActivity extends Activity {
             }));
         } else {
             list.setOnItemClickListener((parent, view, pos, id) -> {
-                Ui.launch(this, shown.get(pos)[1]);
+                Ui.launchFrom(view, shown.get(pos)[1]);
                 finish();
             });
         }
@@ -131,5 +131,11 @@ public class AppListActivity extends Activity {
                 list.setItemChecked(i, selected.contains(shown.get(i)[1]));
             }
         }
+    }
+
+    @Override
+    public void finish() {
+        super.finish();
+        Ui.close(this);
     }
 }
