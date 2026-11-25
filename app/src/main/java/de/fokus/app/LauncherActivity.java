@@ -75,6 +75,8 @@ public class LauncherActivity extends Activity {
     private LinearLayout content, info;
     private FrameLayout rootFrame;
     private boolean onInfo = false;
+    private TextView blockWarn;
+    private String lastDienst = "";
     private TextView focusPill, importantText, allApps, quietHint;
     private LinearLayout eventBox, screenBox, appsGrid, contactsRow;
     private GestureDetector flingDetector;
@@ -141,6 +143,17 @@ public class LauncherActivity extends Activity {
         date.setTypeface(LIGHT);
         date.setPadding(dp(2), dp(4), 0, 0);
         clockCol.addView(date);
+        blockWarn = Ui.text(this, "Reels-Block ist aus – antippen zum Einschalten", 13, 0xFFE57373);
+        blockWarn.setTypeface(LIGHT);
+        blockWarn.setPadding(dp(2), dp(12), 0, 0);
+        blockWarn.setVisibility(View.GONE);
+        blockWarn.setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            } catch (Exception ignored) {
+            }
+        });
+        clockCol.addView(blockWarn);
         head.addView(clockCol, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         focusPill = Ui.text(this, "", 13, Ui.GRAY);
@@ -241,6 +254,12 @@ public class LauncherActivity extends Activity {
     protected void onResume() {
         super.onResume();
         Protokoll.log(this, "HOME", "Homescreen geöffnet (Seite: " + (onInfo ? "Heute" : "Haupt") + ")");
+        blockWarn.setVisibility(ReelsBlockerService.running() ? View.GONE : View.VISIBLE);
+        String ds = Protokoll.dienstStatus(this);
+        if (!ds.equals(lastDienst)) {
+            lastDienst = ds;
+            Protokoll.log(this, "DIENST", ds);
+        }
         accent = Game.accent(this);
         updateFocusPill();
         refreshImportant();

@@ -34,6 +34,7 @@ final class Protokoll {
         Prefs.p(c).edit().putBoolean("log_on", on).apply();
         Diagnose.setOn(c, on);
         write(c, "INFO", on ? "Aufzeichnung gestartet – " + geraet(c) : "Aufzeichnung beendet");
+        if (on) write(c, "DIENST", dienstStatus(c));
     }
 
     /** Normaler Eintrag, nur wenn die Aufzeichnung läuft. */
@@ -96,6 +97,14 @@ final class Protokoll {
 
     private static File file(Context c) {
         return new File(c.getApplicationContext().getFilesDir(), "fokus_protokoll.txt");
+    }
+
+    static String dienstStatus(Context c) {
+        String enabled = android.provider.Settings.Secure.getString(c.getContentResolver(),
+                android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        boolean an = enabled != null && enabled.toLowerCase(Locale.ROOT).contains(c.getPackageName());
+        return "Reels-Block in Einstellungen: " + (an ? "AN" : "AUS") + " | Dienst läuft: "
+                + (ReelsBlockerService.running() ? "JA" : "NEIN");
     }
 
     static String geraet(Context c) {

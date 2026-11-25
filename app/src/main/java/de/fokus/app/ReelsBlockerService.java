@@ -47,7 +47,10 @@ public class ReelsBlockerService extends AccessibilityService {
         checkPending = false;
         try {
             List<AccessibilityNodeInfo> roots = instagramRoots();
-            if (roots.isEmpty()) return;
+            if (roots.isEmpty()) {
+                Protokoll.log(this, "REELS", "Ereignis da, aber kein Instagram-Fenster lesbar");
+                return;
+            }
             if (Game.focusActive(this)) {
                 Protokoll.log(this, "REELS", "Fokusblock aktiv → Instagram geschlossen");
                 blockAll();
@@ -95,10 +98,17 @@ public class ReelsBlockerService extends AccessibilityService {
         return out;
     }
 
+    private long lastEventLog = 0;
+
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event.getPackageName() == null) return;
         if (!IG.equals(event.getPackageName().toString())) return;
+        long t = SystemClock.uptimeMillis();
+        if (t - lastEventLog > 10_000) {
+            lastEventLog = t;
+            Protokoll.log(this, "DIENST", "Instagram-Ereignis empfangen (Typ " + event.getEventType() + ")");
+        }
         if (!checkPending) {
             checkPending = true;
             handler.postDelayed(check, 100);
@@ -240,6 +250,11 @@ public class ReelsBlockerService extends AccessibilityService {
     }
 
     /** Führt eine System-Aktion aus (z. B. Bildschirm sperren). false, wenn der Dienst nicht läuft. */
+    /** Läuft der Dienst gerade wirklich (nicht nur eingeschaltet)? */
+    static boolean running() {
+        return instance != null;
+    }
+
     static boolean global(int action) {
         return instance != null && instance.performGlobalAction(action);
     }
