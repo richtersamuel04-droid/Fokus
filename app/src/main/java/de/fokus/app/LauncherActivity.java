@@ -262,10 +262,13 @@ public class LauncherActivity extends Activity {
         }
         accent = Game.accent(this);
         updateFocusPill();
-        refreshImportant();
-        refreshEvents();
-        refreshScreenTime();
         refreshApps();
+        // Heute-Seite still vorbereiten, damit beim Wischen nichts nachlädt
+        rootFrame.post(() -> {
+            refreshImportant();
+            refreshEvents();
+            refreshScreenTime();
+        });
         refreshContacts();
         refreshQuiet();
         refreshEvening();
@@ -582,10 +585,7 @@ public class LauncherActivity extends Activity {
         lp.topMargin = dp(8);
         screenBox.addView(bar, lp);
         int target = (int) Math.min(1000, today * 1000 / (4 * 3600_000L)); // Linie = 4 Stunden
-        ObjectAnimator a = ObjectAnimator.ofInt(bar, "progress", 0, target);
-        a.setDuration(900);
-        a.setInterpolator(new DecelerateInterpolator());
-        a.start();
+        bar.setProgress(target);
 
         // Vergleich mit gestern (gleiche Uhrzeit) und Schnitt der letzten 7 Tage
         long diff = today - yesterday;
@@ -788,11 +788,6 @@ public class LauncherActivity extends Activity {
                     if (settleAnim != null) settleAnim.cancel();
                     dragStartProgress = progress;
                     downX = ev.getRawX();
-                    if (!onInfo) {
-                        refreshImportant();
-                        refreshEvents();
-                        refreshScreenTime();
-                    }
                     info.setVisibility(View.VISIBLE);
                     MotionEvent cancel = MotionEvent.obtain(ev);
                     cancel.setAction(MotionEvent.ACTION_CANCEL);
@@ -868,7 +863,7 @@ public class LauncherActivity extends Activity {
                 boolean wasInfo = onInfo;
                 onInfo = toInfo;
                 if (!toInfo) info.setVisibility(View.INVISIBLE);
-                if (toInfo && !wasInfo) staggerIn(info);
+
             }
         });
         settleAnim.start();
@@ -1114,11 +1109,6 @@ public class LauncherActivity extends Activity {
 
     /** Wechsel zwischen Seite 1 (Apps) und Seite 2 (Heute), z. B. per Zurück- oder Home-Taste. */
     private void showInfo(boolean show) {
-        if (show && !onInfo) {
-            refreshImportant();
-            refreshEvents();
-            refreshScreenTime();
-        }
         if (show == onInfo && Math.abs(progress - (show ? 1f : 0f)) < 0.01f) return;
         animateTo(show ? 1f : 0f);
     }
