@@ -1,14 +1,19 @@
 package de.fokus.app;
 
 import android.accessibilityservice.AccessibilityService;
+import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.widget.Toast;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Beobachtet nur Instagram. Sobald Reels sichtbar sind (Reels-Tab oder
@@ -38,16 +43,38 @@ public class ReelsBlockerService extends AccessibilityService {
 
     private final Runnable check = () -> {
         checkPending = false;
-        AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null || root.getPackageName() == null) return;
-        if (!IG.equals(root.getPackageName().toString())) return;
+        List<AccessibilityNodeInfo> roots = instagramRoots();
+        if (roots.isEmpty()) return;
         if (Game.focusActive(this)) {
             blockAll();
             return;
         }
-        int where = detectReels(root);
-        if (where != NONE) block(root, where);
+        boolean diag = Diagnose.on(this);
+        for (AccessibilityNodeInfo root : roots) {
+            int where = detectReels(root, diag);
+            if (where != NONE) {
+                block(root, where);
+                return;
+            }
+        }
     };
+
+    /** Alle sichtbaren Instagram-Fenster (nicht nur das aktive). */
+    private List<AccessibilityNodeInfo> instagramRoots() {
+        List<AccessibilityNodeInfo> out = new ArrayList<>();
+        try {
+            for (AccessibilityWindowInfo w : getWindows()) {
+                AccessibilityNodeInfo r = w.getRoot();
+                if (r != null && r.getPackageName() != null && IG.equals(r.getPackageName().toString())) out.add(r);
+            }
+        } catch (Exception ignored) {
+        }
+        if (out.isEmpty()) {
+            AccessibilityNodeInfo r = getRootInActiveWindow();
+            if (r != null && r.getPackageName() != null && IG.equals(r.getPackageName().toString())) out.add(r);
+        }
+        return out;
+    }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
@@ -55,29 +82,58 @@ public class ReelsBlockerService extends AccessibilityService {
         if (!IG.equals(event.getPackageName().toString())) return;
         if (!checkPending) {
             checkPending = true;
-            handler.postDelayed(check, 120);
+            handler.postDelayed(check, 100);
         }
     }
 
-    private int detectReels(AccessibilityNodeInfo root) {
+    /**
+     * Erkennung in drei Stufen:
+     * 1. bekannte IDs des Reels-Players,
+     * 2. jede sichtbare Ansicht mit "clips" in der ID, die fast den ganzen Bildschirm füllt
+     *    (Vollbild-Reel aus Feed, DMs, Suche, Profil),
+     * 3. ausgewählter Reels-Tab (per ID oder Name).
+     */
+    private int detectReels(AccessibilityNodeInfo root, boolean diag) {
         for (String id : REELS_VIEW_IDS) {
             if (anyVisible(root.findAccessibilityNodeInfosByViewId(id))) return PLAYER;
         }
-        List<AccessibilityNodeInfo> tabs = root.findAccessibilityNodeInfosByViewId(REELS_TAB_ID);
-        if (tabs != null) {
-            for (AccessibilityNodeInfo n : tabs) {
-                if (n != null && n.isSelected()) return TAB;
+        int screenH = getResources().getDisplayMetrics().heightPixels;
+        Rect r = new Rect();
+        ArrayDeque<AccessibilityNodeInfo> stack = new ArrayDeque<>();
+        stack.push(root);
+        int visited = 0;
+        int result = NONE;
+        while (!stack.isEmpty() && visited < 4000) {
+            AccessibilityNodeInfo n = stack.pop();
+            visited++;
+            if (n == null) continue;
+            String id = n.getViewIdResourceName();
+            boolean visible = n.isVisibleToUser();
+            if (visible) n.getBoundsInScreen(r);
+            if (diag && id != null && visible) Diagnose.record(this, id, r.height() * 100 / Math.max(1, screenH), n.isSelected());
+
+            if (visible && id != null) {
+                String low = id.toLowerCase(Locale.ROOT);
+                if (low.contains("clips") && !low.contains("clips_tab") && r.height() >= screenH * 0.6) {
+                    result = PLAYER;
+                    if (!diag) return result;
+                }
+                if (low.endsWith(":id/clips_tab") && n.isSelected()) {
+                    if (result == NONE) result = TAB;
+                    if (!diag) return result;
+                }
             }
-        }
-        // Rückfall, falls Instagram seine internen IDs ändert:
-        // ein ausgewählter Tab/Knopf mit dem Namen "Reels".
-        List<AccessibilityNodeInfo> named = root.findAccessibilityNodeInfosByText("Reels");
-        if (named != null) {
-            for (AccessibilityNodeInfo n : named) {
-                if (n != null && n.isSelected() && n.isVisibleToUser()) return TAB;
+            if (visible && n.isSelected()) {
+                CharSequence cd = n.getContentDescription(), tx = n.getText();
+                if ((cd != null && cd.toString().trim().equalsIgnoreCase("Reels"))
+                        || (tx != null && tx.toString().trim().equalsIgnoreCase("Reels"))) {
+                    if (result == NONE) result = TAB;
+                    if (!diag) return result;
+                }
             }
+            for (int i = n.getChildCount() - 1; i >= 0; i--) stack.push(n.getChild(i));
         }
-        return NONE;
+        return result;
     }
 
     private static boolean anyVisible(List<AccessibilityNodeInfo> nodes) {

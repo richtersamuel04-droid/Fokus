@@ -56,6 +56,27 @@ public class MainActivity extends Activity {
                 new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         Uri.parse("package:" + getPackageName())))));
 
+        section(box, "Reels kommen noch durch?");
+        hint(box, "1. Diagnose einschalten. 2. Instagram öffnen und genau dorthin gehen, wo Reels "
+                + "noch durchrutschen (ein paar Sekunden schauen). 3. Zurück hierher, „Diagnose kopieren“ "
+                + "und den Text an Claude schicken. Es werden nur interne Ansichtsnamen gespeichert, "
+                + "keine Inhalte, Namen oder Nachrichten.");
+        android.widget.Switch diag = new android.widget.Switch(this);
+        diag.setText("Diagnose aufzeichnen");
+        diag.setTextColor(Ui.WHITE);
+        diag.setChecked(Diagnose.on(this));
+        diag.setOnCheckedChangeListener((b, on) -> Diagnose.setOn(this, on));
+        box.addView(diag);
+        box.addView(Ui.button(this, "Diagnose kopieren", () -> {
+            String t = Diagnose.text(this);
+            android.content.ClipboardManager cm =
+                    (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("Fokus Diagnose", t.isEmpty() ? "(leer)" : t));
+            android.widget.Toast.makeText(this, t.isEmpty() ? "Noch nichts aufgezeichnet"
+                    : "Kopiert – jetzt bei Claude einfügen", android.widget.Toast.LENGTH_SHORT).show();
+        }));
+        box.addView(Ui.button(this, "Diagnose leeren", () -> Diagnose.clear(this)));
+
         section(box, "2. Ruhiger Homescreen");
         box.addView(Ui.button(this, "Homescreen-Apps auswählen (max. 8)", () -> {
             Intent i = new Intent(this, AppListActivity.class);

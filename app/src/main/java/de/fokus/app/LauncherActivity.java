@@ -722,7 +722,7 @@ public class LauncherActivity extends Activity {
             public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
                 if (e1 == null) return false;
                 float dy = e2.getY() - e1.getY(), dx = e2.getX() - e1.getX();
-                if (Math.abs(dy) < dp(90) || Math.abs(dy) < Math.abs(dx) * 1.5f || Math.abs(vy) < 900) return false;
+                if (Math.abs(dy) < dp(50) || Math.abs(dy) < Math.abs(dx) * 1.2f || Math.abs(vy) < 350) return false;
                 if (dy < 0) openAllApps();
                 else openNotifications();
                 return true;
@@ -744,7 +744,11 @@ public class LauncherActivity extends Activity {
 
     private void openAllApps() {
         int until = Game.quietUntil(this);
-        if (until >= 0 && LocalTime.now().getHour() < until) return; // Ruhiger Start
+        if (until >= 0 && LocalTime.now().getHour() < until) { // Ruhiger Start
+            android.widget.Toast.makeText(this, "Ruhiger Start bis " + until + ":00 – Alle Apps danach",
+                    android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
         startActivity(new Intent(this, AppListActivity.class));
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
     }
