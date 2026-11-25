@@ -45,8 +45,14 @@ final class Ui {
 
     /** Startet eine App so, dass sie aus dem angetippten Icon heraus wächst. */
     static void launchFrom(android.view.View v, String pkg) {
+        launchFrom(v, pkg, null);
+    }
+
+    /** Wie oben, mit vorab ermitteltem Start-Intent (spart Zeit beim Antippen). */
+    static void launchFrom(android.view.View v, String pkg, Intent prepared) {
         Context c = v.getContext();
-        Intent i = c.getPackageManager().getLaunchIntentForPackage(pkg);
+        Intent i = prepared != null ? new Intent(prepared)
+                : c.getPackageManager().getLaunchIntentForPackage(pkg);
         if (i == null) {
             Toast.makeText(c, "App nicht gefunden", Toast.LENGTH_SHORT).show();
             return;

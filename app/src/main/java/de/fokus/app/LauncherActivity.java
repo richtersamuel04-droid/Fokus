@@ -1033,13 +1033,18 @@ public class LauncherActivity extends Activity {
         cell.addView(label, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        cell.setOnClickListener(v -> {
-            v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(80)
-                    .withEndAction(() -> {
-                        v.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
-                        Ui.launchFrom(v, pkg);
-                    }).start();
+        // Eindrücken direkt beim Berühren, App startet ohne Wartezeit beim Loslassen
+        final Intent launch = getPackageManager().getLaunchIntentForPackage(pkg);
+        cell.setOnTouchListener((v, e) -> {
+            int a = e.getActionMasked();
+            if (a == MotionEvent.ACTION_DOWN) {
+                v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(70).start();
+            } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
+                v.animate().scaleX(1f).scaleY(1f).setDuration(140).start();
+            }
+            return false;
         });
+        cell.setOnClickListener(v -> Ui.launchFrom(v, pkg, launch));
         return cell;
     }
 
