@@ -71,7 +71,9 @@ public class LauncherActivity extends Activity {
     private static final int REQ_CAL = 7;
 
     private int accent;
-    private LinearLayout content;
+    private LinearLayout content, info;
+    private FrameLayout rootFrame;
+    private boolean onInfo = false;
     private TextView focusPill, importantText, allApps, quietHint;
     private LinearLayout eventBox, screenBox, appsGrid, contactsRow;
     private GestureDetector flingDetector;
@@ -108,13 +110,15 @@ public class LauncherActivity extends Activity {
         getWindow().setStatusBarColor(Color.BLACK);
         getWindow().setNavigationBarColor(Color.BLACK);
 
+        rootFrame = new FrameLayout(this);
+        rootFrame.setBackgroundColor(Color.BLACK);
+        rootFrame.setFocusableInTouchMode(true); // Tastatur nicht automatisch öffnen
+
+        // ===== Seite 1: Uhr, Kontakte, Suche, Apps =====
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setBackgroundColor(Color.BLACK);
-        content.setFocusableInTouchMode(true); // Tastatur nicht automatisch öffnen
-        content.setPadding(dp(28), dp(40), dp(28), dp(20));
+        content.setPadding(dp(28), dp(40), dp(28), dp(16));
 
-        // --- Uhr + Fokus ---
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.TOP);
@@ -148,64 +152,88 @@ public class LauncherActivity extends Activity {
         head.addView(focusPill, pillLp);
         content.addView(head);
 
-        importantText = Ui.text(this, "", 15, Ui.GRAY);
-        importantText.setTypeface(LIGHT);
-        importantText.setPadding(dp(2), dp(14), 0, 0);
-        importantText.setOnClickListener(v -> editImportant());
-        content.addView(importantText);
-
-        // --- Termine ---
-        eventBox = new LinearLayout(this);
-        eventBox.setOrientation(LinearLayout.VERTICAL);
-        eventBox.setPadding(0, dp(34), 0, 0);
-        content.addView(eventBox);
-
-        // --- Bildschirmzeit ---
-        screenBox = new LinearLayout(this);
-        screenBox.setOrientation(LinearLayout.VERTICAL);
-        screenBox.setPadding(0, dp(30), 0, 0);
-        content.addView(screenBox);
-
-        // --- Abstand: Apps sitzen unten am Daumen ---
         content.addView(new View(this), new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         contactsRow = new LinearLayout(this);
         contactsRow.setOrientation(LinearLayout.HORIZONTAL);
-        contactsRow.setPadding(0, 0, 0, dp(6));
+        contactsRow.setPadding(0, 0, 0, dp(14));
         content.addView(contactsRow);
 
-        content.addView(searchBar("Google durchsuchen", false));
-        content.addView(searchBar("Claude fragen", true));
+        content.addView(combinedSearchBar());
 
         appsGrid = new LinearLayout(this);
         appsGrid.setOrientation(LinearLayout.VERTICAL);
-        appsGrid.setPadding(0, dp(10), 0, 0);
+        appsGrid.setPadding(0, dp(14), 0, 0);
         content.addView(appsGrid);
 
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.HORIZONTAL);
         bottom.setGravity(Gravity.CENTER);
-        bottom.setPadding(0, dp(14), 0, dp(4));
+        bottom.setPadding(0, dp(6), 0, 0);
         allApps = Ui.text(this, "Alle Apps", 13, Ui.DARK_GRAY);
         allApps.setTypeface(REGULAR);
-        allApps.setPadding(dp(16), dp(8), dp(16), dp(8));
+        allApps.setPadding(dp(16), dp(6), dp(16), dp(6));
         allApps.setOnClickListener(v -> startActivity(new Intent(this, AppListActivity.class)));
         bottom.addView(allApps);
         quietHint = Ui.text(this, "", 13, 0xFF444444);
         quietHint.setTypeface(LIGHT);
         bottom.addView(quietHint);
         content.addView(bottom);
+        content.addView(pageDots(0));
+
+        // ===== Seite 2: Heute (Termine, Wichtig, Bildschirmzeit) =====
+        info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.setBackgroundColor(Color.BLACK);
+        info.setPadding(dp(28), dp(48), dp(28), dp(16));
+
+        TextView infoTitle = Ui.text(this, "Heute", 34, Ui.WHITE);
+        infoTitle.setTypeface(THIN);
+        info.addView(infoTitle);
+
+        importantText = Ui.text(this, "", 15, Ui.GRAY);
+        importantText.setTypeface(LIGHT);
+        importantText.setPadding(dp(2), dp(14), 0, 0);
+        importantText.setOnClickListener(v -> editImportant());
+        info.addView(importantText);
+
+        eventBox = new LinearLayout(this);
+        eventBox.setOrientation(LinearLayout.VERTICAL);
+        eventBox.setPadding(0, dp(34), 0, 0);
+        info.addView(eventBox);
+
+        screenBox = new LinearLayout(this);
+        screenBox.setOrientation(LinearLayout.VERTICAL);
+        screenBox.setPadding(0, dp(34), 0, 0);
+        info.addView(screenBox);
+
+        info.addView(new View(this), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        info.addView(pageDots(1));
+
+        rootFrame.addView(content, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        rootFrame.addView(info, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        info.setVisibility(View.INVISIBLE);
 
         View.OnLongClickListener openSettings = v -> {
             startActivity(new Intent(this, MainActivity.class));
             return true;
         };
         content.setOnLongClickListener(openSettings);
+        info.setOnLongClickListener(openSettings);
         head.setOnLongClickListener(openSettings);
 
         setupGestures();
-        setContentView(content);
+        setContentView(rootFrame);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        showInfo(false); // Home-Taste bringt immer zurück zur Hauptseite
     }
 
     @Override
@@ -722,6 +750,10 @@ public class LauncherActivity extends Activity {
             public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
                 if (e1 == null) return false;
                 float dy = e2.getY() - e1.getY(), dx = e2.getX() - e1.getX();
+                if (Math.abs(dx) > dp(60) && Math.abs(dx) > Math.abs(dy) * 1.3f && Math.abs(vx) > 350) {
+                    showInfo(dx < 0);
+                    return true;
+                }
                 if (Math.abs(dy) < dp(50) || Math.abs(dy) < Math.abs(dx) * 1.2f || Math.abs(vy) < 350) return false;
                 if (dy < 0) openAllApps();
                 else openNotifications();
@@ -736,10 +768,12 @@ public class LauncherActivity extends Activity {
             }
         });
         // Doppeltipp nur auf leere Fläche (nicht auf Apps, Termine usw.)
-        content.setOnTouchListener((v, e) -> {
+        View.OnTouchListener tl = (v, e) -> {
             tapDetector.onTouchEvent(e);
             return false;
-        });
+        };
+        content.setOnTouchListener(tl);
+        info.setOnTouchListener(tl);
     }
 
     private void openAllApps() {
@@ -772,7 +806,7 @@ public class LauncherActivity extends Activity {
     // ================= Abendmodus =================
 
     private void refreshEvening() {
-        content.animate().alpha(Game.eveningActive(this) ? 0.5f : 1f).setDuration(600).start();
+        rootFrame.animate().alpha(Game.eveningActive(this) ? 0.5f : 1f).setDuration(600).start();
     }
 
     // ================= Apps =================
@@ -870,42 +904,88 @@ public class LauncherActivity extends Activity {
 
     // ================= Google- & Claude-Leiste =================
 
-    private View searchBar(String hint, boolean claude) {
+    /** Eine Leiste, zwei Hälften: links Google, rechts Claude. */
+    private View combinedSearchBar() {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(18), dp(13), dp(18), dp(13));
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(dp(24));
         bg.setColor(0xFF111111);
         bg.setStroke(dp(1), 0xFF1F1F1F);
         bar.setBackground(bg);
 
+        bar.addView(barHalf("Google", false), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        View div = new View(this);
+        div.setBackgroundColor(0xFF242424);
+        bar.addView(div, new LinearLayout.LayoutParams(dp(1), dp(22)));
+        bar.addView(barHalf("Claude", true), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        return bar;
+    }
+
+    private View barHalf(String label, boolean claude) {
+        LinearLayout h = new LinearLayout(this);
+        h.setOrientation(LinearLayout.HORIZONTAL);
+        h.setGravity(Gravity.CENTER);
+        h.setPadding(dp(12), dp(14), dp(12), dp(14));
         View dot = new View(this);
         GradientDrawable d = new GradientDrawable();
         d.setShape(GradientDrawable.OVAL);
         d.setColor(claude ? Game.accent(this) : 0xFF555555);
         dot.setBackground(d);
-        LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dp(7), dp(7));
-        dotLp.rightMargin = dp(14);
-        bar.addView(dot, dotLp);
-
-        TextView t = Ui.text(this, hint, 15, 0xFF666666);
+        LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dp(6), dp(6));
+        dotLp.rightMargin = dp(10);
+        h.addView(dot, dotLp);
+        TextView t = Ui.text(this, label, 15, 0xFF777777);
         t.setTypeface(LIGHT);
-        bar.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        bar.setOnClickListener(v -> {
+        h.addView(t);
+        h.setOnClickListener(v -> {
             Intent i = new Intent(this, QueryActivity.class);
             i.putExtra(QueryActivity.EXTRA_CLAUDE, claude);
             startActivity(i);
             overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
         });
+        return h;
+    }
 
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(10);
-        bar.setLayoutParams(lp);
-        return bar;
+    private View pageDots(int active) {
+        LinearLayout dots = new LinearLayout(this);
+        dots.setOrientation(LinearLayout.HORIZONTAL);
+        dots.setGravity(Gravity.CENTER);
+        dots.setPadding(0, dp(8), 0, dp(2));
+        for (int i = 0; i < 2; i++) {
+            View d = new View(this);
+            GradientDrawable g = new GradientDrawable();
+            g.setShape(GradientDrawable.OVAL);
+            g.setColor(i == active ? 0xFF888888 : 0xFF2E2E2E);
+            d.setBackground(g);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(6), dp(6));
+            lp.leftMargin = dp(4);
+            lp.rightMargin = dp(4);
+            dots.addView(d, lp);
+        }
+        return dots;
+    }
+
+    /** Wechsel zwischen Seite 1 (Apps) und Seite 2 (Heute) mit Gleit-Animation. */
+    private void showInfo(boolean show) {
+        if (show == onInfo) return;
+        onInfo = show;
+        int w = rootFrame.getWidth();
+        if (show) {
+            refreshImportant();
+            refreshEvents();
+            refreshScreenTime();
+            info.setTranslationX(w);
+            info.setVisibility(View.VISIBLE);
+            info.animate().translationX(0).setDuration(280).setInterpolator(new DecelerateInterpolator()).start();
+            content.animate().translationX(-w * 0.3f).alpha(0f).setDuration(280).start();
+        } else {
+            info.animate().translationX(w).setDuration(260).setInterpolator(new DecelerateInterpolator())
+                    .withEndAction(() -> info.setVisibility(View.INVISIBLE)).start();
+            content.setTranslationX(-w * 0.3f);
+            content.animate().translationX(0).alpha(1f).setDuration(260).start();
+        }
     }
 
     // ================= Ruhiger Start =================
@@ -921,8 +1001,9 @@ public class LauncherActivity extends Activity {
     // ================= Animation =================
 
     private void fadeIn() {
-        for (int i = 0; i < content.getChildCount(); i++) {
-            View v = content.getChildAt(i);
+        LinearLayout page = onInfo ? info : content;
+        for (int i = 0; i < page.getChildCount(); i++) {
+            View v = page.getChildAt(i);
             v.setAlpha(0f);
             v.setTranslationY(dp(10));
             v.animate().alpha(1f).translationY(0).setStartDelay(i * 45L).setDuration(380)
@@ -940,6 +1021,7 @@ public class LauncherActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (onInfo) showInfo(false);
         // Homescreen bleibt Homescreen
     }
 }
